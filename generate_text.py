@@ -2,6 +2,7 @@ import streamlit as st
 import numpy as np
 import os
 from typing import List, Callable
+import matplotlib.pyplot as plt
 
 
 def clean_tokens(tokens: List[str]) -> List[str]:
@@ -23,6 +24,10 @@ def tokens_for_file(file):
         tokens = f.read().split()
     tokens = clean_tokens(tokens)
     return tokens
+
+def load_file(file):
+    with open(file) as f:
+        return f.read()
 
 def tokens_for_string(str: str) -> List[str]:
     return clean_tokens(str.split())
@@ -68,32 +73,37 @@ def generate_text(tokens: List[str], length: int, P_matrix: np.ndarray, P_init: 
     return " ".join(text)
 
 
+def plot_transition_matrix(P_matrix: np.ndarray):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.spy(P_matrix, markersize=2)
+    plt.title("Transition Matrix")
+    return fig
+
 example_text_mapping = {
     "Las Vegas (German)": "text.txt",
     "Sport (German)": "text2.txt"
 }
 
-st.write("# Generate Text")
-st.write("This is a simple text generator that uses a Markov chain to generate text.")
-
-source_text = st.text_area("Paste a soruce text here:")
-initial_word = st.text_input("Start with this word (has to be in the source text):")
-length = st.number_input("Length of the generated text:", value=100)
-show_transition_matrix = st.checkbox("Show transition matrix")
-
-
 st.sidebar.write("### Example Texts")
 selected_example_text = st.sidebar.selectbox("Select Example Text", ["Custom", "Las Vegas (German)", "Sport (German)"])
+
+st.write("# Markov Chain Text Generator")
+st.write("This is a simple text generator that uses markov chains to generate text based on a source text. Read more about the way it works in the [related blog post](https://)")
+
+source_text = ""
+if selected_example_text != "Custom":
+    source_text = load_file(example_text_mapping[selected_example_text])
+
+source_text = st.text_area("Paste source text here:", source_text)
+initial_word = st.text_input("Start generated text with this word (has to be in the source text):")
+length = st.number_input("Length of the generated text:", value=100)
+show_transition_matrix = st.checkbox("Show transition matrix")
 
 
 if st.button("Generate Text"):
     with st.spinner("Generating text"):
 
-        if selected_example_text != "Custom":
-                    tokens = tokens_for_file(example_text_mapping[selected_example_text])
-        else:
-            tokens = tokens_for_string(source_text)
-
+        tokens = tokens_for_string(source_text)
         unique_tokens = list(set(tokens))
 
         if len(tokens) == 0:
@@ -122,6 +132,7 @@ if st.button("Generate Text"):
             if show_transition_matrix:
                 st.write("### Transition matrix:")
                 st.write("Shape:", P_matrix.shape)
+                st.write(plot_transition_matrix(P_matrix))
                 st.write(P_matrix)
 
 
