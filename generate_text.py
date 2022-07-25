@@ -65,6 +65,7 @@ def generate_text(tokens: List[str], length: int, P_matrix: np.ndarray, P_init: 
     text.append(current_token)
     for i in range(length):
         # Token should not be the last token in the text as there is no probability of transitioning from it to anything
+        # Workaround could be to use the first token as the token to transition to
         while current_token == tokens[-1]:
             current_token = np.random.choice(unique_tokens)
     
@@ -84,55 +85,79 @@ example_text_mapping = {
     "Sport (German)": "text2.txt"
 }
 
-st.sidebar.write("### Example Texts")
-selected_example_text = st.sidebar.selectbox("Select Example Text", ["Custom", "Las Vegas (German)", "Sport (German)"])
+if "source_text" not in st.session_state:
+    st.session_state.source_text = ""
+if "P_matrix" not in st.session_state:
+    st.session_state["P_matrix"] = None
+if "P_init" not in st.session_state:
+    st.session_state["P_init"] = None
+if "tokens" not in st.session_state:
+    st.session_state["tokens"] = []
+if "initial_word" not in st.session_state:
+    st.session_state["initial_word"] = ""
+if "selected_text" not in st.session_state:
+    st.session_state["selected_text"] = ""
 
+
+st.sidebar.write("### Examples")
+selected_example_text = st.sidebar.selectbox("Select Example Text", ["Custom", "Las Vegas (German)", "Sport (German)"])
 st.write("# Markov Chain Text Generator")
 st.write("This is a simple text generator that uses markov chains to generate text based on a source text. Read more about the way it works in the [related blog post](https://)")
 
-source_text = ""
-if selected_example_text != "Custom":
-    source_text = load_file(example_text_mapping[selected_example_text])
 
-source_text = st.text_area("Paste source text here:", source_text)
-initial_word = st.text_input("Start generated text with this word (has to be in the source text):")
-length = st.number_input("Length of the generated text:", value=100)
+def reload_generator():
+
+    print("Relaoading generator")
+    
+    tokens = tokens_for_string(st.session_state["source_text"])
+
+    st.session_state["tokens"] = tokens
+    st.session_state["P_matrix"] = calculate_transition_matrix(tokens)
+
+if selected_example_text != "Custom":
+        st.session_state["selected_text"] = load_file(example_text_mapping[selected_example_text])
+
+
+source_text = st.text_area("Paste or write source text here:", st.session_state["selected_text"])
+st.text_input("Start generated text with this word or sentence (last word has to be in the source text):", key="initial_word")
+length = st.number_input("Length of the generated text (in words):", value=100)
 show_transition_matrix = st.checkbox("Show transition matrix")
 
 
 if st.button("Generate Text"):
     with st.spinner("Generating text"):
+          
+        if st.session_state["source_text"] != source_text:
+            print("Have to reload generator")
 
-        tokens = tokens_for_string(source_text)
-        unique_tokens = list(set(tokens))
+            print(source_text[:10])
+            print(st.session_state["source_text"][:10])
+    
+            st.session_state["source_text"] = source_text
+            reload_generator()
+            # print(st.session_state["source_text"][:10])
+            print("Reloaded generator")
 
-        if len(tokens) == 0:
-            st.error("No text found in the source text area")
-        elif len(tokens) == 1:
-            st.write("### Generated text:")
-            st.write(tokens[0])
-            if show_transition_matrix:
-                st.write("### Transition matrix:")
-                st.write(np.zeros((1, 1)))
-        else:            
-            P_matrix = calculate_transition_matrix(tokens)
+        if st.session_state["initial_word"] != "":
+            st.session_state["P_init"] = None
+            unique_tokens = list(set(st.session_state["tokens"]))
+            start_token = st.session_state["initial_word"].split()[-1]
+            if start_token in unique_tokens:
+                st.session_state["P_init"] = np.zeros(len(unique_tokens))
+                st.session_state["P_init"][unique_tokens.index(start_token)] = 1    
 
-            P_init = None
-            if initial_word in unique_tokens:
-                P_init = np.zeros(len(unique_tokens))
-                P_init[unique_tokens.index(initial_word)] = 1
+        text = " ".join(st.session_state["initial_word"].split()[:-1]) + " "
+        text += generate_text(st.session_state["tokens"], length, st.session_state["P_matrix"], st.session_state["P_init"])
 
-            text = generate_text(tokens, length, P_matrix, P_init)
+        st.write("### Generated text:")
+        st.write(text)
 
-            st.write("### Generated text:")
-            st.write(text)
+        st.write("Length of source text:", len(st.session_state["tokens"]))
 
-            st.write("Length of source text:", len(tokens))
-
-            if show_transition_matrix:
-                st.write("### Transition matrix:")
-                st.write("Shape:", P_matrix.shape)
-                st.write(plot_transition_matrix(P_matrix))
-                st.write(P_matrix)
+        if show_transition_matrix:
+            st.write("### Transition matrix:")
+            st.write("Shape:", st.session_state["P_matrix"] .shape)
+            st.write(plot_transition_matrix(st.session_state["P_matrix"]))
+            st.write(st.session_state["P_matrix"])
 
 
